@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal TI · SURA EPS (caso de estudio)</title>
+<meta name="robots" content="noindex, nofollow">
+<style>
+  :root{
+    --bg:#f4f6f5; --card:#ffffff; --ink:#1c2826; --muted:#5d6b68; --line:#dde3e1;
+    --brand:#1f5c55; --brand-2:#2f8a7e; --accent:#e0a526; --ok:#2e7d4f; --err:#b23b3b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.5}
+  .aviso{background:var(--accent);color:#2a1d00;text-align:center;padding:10px 16px;font-size:14px;font-weight:600}
+  header{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#fff;padding:40px 16px 56px}
+  .wrap{max-width:1100px;margin:0 auto;padding:0 16px}
+  header h1{margin:0 0 6px;font-size:clamp(26px,4vw,38px);letter-spacing:-.5px}
+  header p{margin:0;opacity:.9;max-width:680px}
+  .chip{display:inline-flex;align-items:center;gap:8px;margin-top:18px;background:rgba(255,255,255,.15);padding:6px 12px;border-radius:999px;font-size:14px}
+  .dot{width:10px;height:10px;border-radius:50%;background:#999}
+  .dot.ok{background:#6ee39a}.dot.err{background:#ff8a8a}
+  main{margin-top:-32px;padding-bottom:48px}
+  .grid{display:grid;gap:16px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+  .g4{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:20px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+  h2{font-size:18px;margin:0 0 14px}
+  .stat b{display:block;font-size:13px;color:var(--muted);font-weight:500}
+  .stat span{font-size:15px;font-weight:600;word-break:break-word}
+  table{width:100%;border-collapse:collapse;font-size:14px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+  th{color:var(--muted);font-weight:600}
+  .svc{border-left:4px solid var(--brand-2);padding:10px 12px;background:#f8faf9;border-radius:8px}
+  .svc strong{display:block}.svc small{color:var(--muted)}
+  form{display:grid;gap:10px}
+  label{font-size:13px;font-weight:600;color:var(--muted)}
+  select,textarea,button{font:inherit;width:100%;padding:10px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  textarea{resize:vertical;min-height:80px}
+  button{background:var(--brand);color:#fff;border:0;font-weight:600;cursor:pointer}
+  button:hover{background:var(--brand-2)}
+  .msg{font-size:14px;min-height:20px}
+  .p-Alta{color:var(--err);font-weight:600}.p-Media{color:#a86b00;font-weight:600}.p-Baja{color:var(--ok);font-weight:600}
+  .section{margin-top:16px}
+  footer{text-align:center;color:var(--muted);font-size:13px;padding:24px 16px;border-top:1px solid var(--line)}
+  .scroll{overflow-x:auto}
+</style>
+</head>
+<body>
+  <div class="aviso">⚠️ Proyecto académico — Universidad del Quindío. Este NO es un sitio oficial de SURA EPS ni está afiliado a la compañía.</div>
+
+  <header>
+    <div class="wrap">
+      <h1>Portal interno de servicios de TI</h1>
+      <p>Caso de estudio SURA EPS · Proyecto final de Administración de Infraestructura de TI. Aplicación desplegada con Dokploy sobre Ubuntu Server, conectada a PostgreSQL y publicada con HTTPS.</p>
+      <div class="chip"><span id="dbDot" class="dot"></span><span id="dbTxt">Verificando base de datos…</span></div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="card">
+      <h2>Estado del despliegue</h2>
+      <div class="grid g4" id="estado">
+        <div class="stat"><b>Contenedor</b><span>—</span></div>
+      </div>
+    </div>
+
+    <div class="grid g2 section">
+      <div class="card">
+        <h2>Sedes (datos desde PostgreSQL)</h2>
+        <div class="scroll"><table><thead><tr><th>Ciudad</th><th>Sede</th><th>Equipos</th></tr></thead><tbody id="sedes"></tbody></table></div>
+      </div>
+      <div class="card">
+        <h2>Servicios de infraestructura</h2>
+        <div class="grid" id="servicios" style="gap:8px"></div>
+      </div>
+    </div>
+
+    <div class="grid g2 section">
+      <div class="card">
+        <h2>Reportar incidente de TI</h2>
+        <form id="form">
+          <div><label for="sede">Sede</label><select id="sede" required></select></div>
+          <div><label for="servicio">Servicio afectado</label><select id="servicio" required></select></div>
+          <div><label for="prioridad">Prioridad</label>
+            <select id="prioridad"><option>Baja</option><option selected>Media</option><option>Alta</option></select></div>
+          <div><label for="descripcion">Descripción (máx. 300 caracteres)</label>
+            <textarea id="descripcion" maxlength="300" required placeholder="Ej.: la impresora del piso 2 no aparece en CUPS"></textarea></div>
+          <button type="submit">Registrar incidente</button>
+          <div class="msg" id="msg"></div>
+        </form>
+      </div>
+      <div class="card">
+        <h2>Últimos incidentes registrados</h2>
+        <div class="scroll"><table><thead><tr><th>#</th><th>Sede</th><th>Servicio</th><th>Prioridad</th><th>Descripción</th></tr></thead><tbody id="incidentes"></tbody></table></div>
+      </div>
+    </div>
+  </main>
+
+  <footer>Proyecto académico · Ingeniería de Sistemas y Computación · Universidad del Quindío · 2026<br>Los datos mostrados son de prueba.</footer>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+async function get(url){ const r = await fetch(url); if(!r.ok) throw new Error(url); return r.json(); }
+
+async function cargarEstado(){
+  try{
+    const e = await get('/api/estado');
+    $('dbDot').className='dot ok'; $('dbTxt').textContent='Base de datos conectada';
+    $('estado').innerHTML = [
+      ['Contenedor', e.contenedor], ['Node.js', e.node], ['Motor BD', e.postgres],
+      ['Hora del servidor BD', new Date(e.hora_servidor_bd).toLocaleString('es-CO')]
+    ].map(([k,v])=>`<div class="stat"><b>${k}</b><span>${esc(v)}</span></div>`).join('');
+  }catch{
+    $('dbDot').className='dot err'; $('dbTxt').textContent='Sin conexión a la base de datos';
+  }
+}
+async function cargarDatos(){
+  const [sedes, servicios] = await Promise.all([get('/api/sedes'), get('/api/servicios')]);
+  $('sedes').innerHTML = sedes.map(s=>`<tr><td>${esc(s.ciudad)}</td><td>${esc(s.nombre)}</td><td>${s.equipos}</td></tr>`).join('');
+  $('servicios').innerHTML = servicios.map(s=>`<div class="svc"><strong>${esc(s.nombre)}</strong>${esc(s.descripcion)}<br><small>Responsable: ${esc(s.responsable)}</small></div>`).join('');
+  $('sede').innerHTML = sedes.map(s=>`<option value="${s.id}">${esc(s.ciudad)} — ${esc(s.nombre)}</option>`).join('');
+  $('servicio').innerHTML = servicios.map(s=>`<option>${esc(s.nombre)}</option>`).join('');
+}
+async function cargarIncidentes(){
+  const inc = await get('/api/incidentes');
+  $('incidentes').innerHTML = inc.length ? inc.map(i=>`<tr><td>${i.id}</td><td>${esc(i.ciudad)}</td><td>${esc(i.servicio)}</td><td class="p-${i.prioridad}">${i.prioridad}</td><td>${esc(i.descripcion)}</td></tr>`).join('')
+    : '<tr><td colspan="5" style="color:var(--muted)">Aún no hay incidentes.</td></tr>';
+}
+$('form').addEventListener('submit', async ev=>{
+  ev.preventDefault();
+  const body = { sede_id:+$('sede').value, servicio:$('servicio').value, prioridad:$('prioridad').value, descripcion:$('descripcion').value.trim() };
+  const r = await fetch('/api/incidentes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(r.ok){ $('msg').style.color='var(--ok)'; $('msg').textContent='Incidente registrado en la base de datos ✔'; $('descripcion').value=''; cargarIncidentes(); }
+  else { $('msg').style.color='var(--err)'; $('msg').textContent='No se pudo registrar el incidente.'; }
+});
+cargarEstado(); cargarDatos().catch(()=>{}); cargarIncidentes().catch(()=>{});
+</script>
+</body>
+</html>
