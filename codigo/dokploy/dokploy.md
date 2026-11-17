@@ -22,6 +22,7 @@ Este documento describe cómo se preparó el servidor `dokploy-sura` y cómo se 
 | Red | Modo puente (adaptador físico Realtek PCIe GbE) |
 | IP fija | `192.168.20.86/24` · puerta de enlace `192.168.20.1` |
 | Panel de Dokploy | `http://192.168.20.86:3000` (versión v0.31.3) |
+| Portal web | `https://sura.192.168.20.86.sslip.io` |
 
 > En los comandos, la IP `192.168.20.86` corresponde a nuestro entorno de pruebas. En otro entorno se reemplaza por la IP del servidor.
 
@@ -151,17 +152,141 @@ Luego se abrió `http://192.168.20.86:3000` desde el navegador, se registró la 
 
 ---
 
-## 6. Solución de problemas encontrados
+## 6. Parte 4 — Base de datos PostgreSQL
+
+Desde el panel se creó el proyecto **SURA EPS** y dentro de él el servicio de base de datos:
+
+| Campo | Valor |
+|-------|-------|
+| Nombre | `sura-db` |
+| Motor e imagen | PostgreSQL · `postgres:16` |
+| Base de datos | `sura` |
+| Usuario | `sura_app` |
+| Contraseña | Definida en el panel (no se documenta) |
+| Acceso | Solo por la red interna de Docker; no se expone ningún puerto hacia la LAN |
+
+Se presionó **Deploy** y el log terminó con `Deployment completed successfully!` (captura `22`).
+
+Dokploy muestra la **Internal Connection URL**, con el formato `postgresql://sura_app:********@<nombre-interno>:5432/sura`. Esa URL es la que usa la aplicación para conectarse.
+
+---
+
+## 7. Parte 5 — Aplicación web (Portal interno de servicios de TI)
+
+### 7.1 Descripción de la aplicación
+
+Es un portal en **Node.js + Express** (código en `codigo/dokploy/app`) que:
+
+- Muestra el estado del despliegue: contenedor, versión de Node y versión de PostgreSQL.
+- Lee de la base de datos las sedes y los servicios de infraestructura del proyecto (NTP, NIS, NFS, CUPS, Samba, Web y BD).
+- Permite registrar incidentes de TI y los guarda en PostgreSQL. No pide credenciales ni datos personales.
+- Expone `/health` para comprobar la conexión a la base de datos.
+- Crea sus tablas y datos de prueba automáticamente al iniciar.
+- Muestra una franja que aclara que es un proyecto académico y no un sitio oficial de SURA EPS.
+
+### 7.2 Configuración en Dokploy
+
+Dentro del proyecto **SURA EPS** se creó la aplicación `sura-portal`:
+
+| Campo | Valor |
+|-------|-------|
+| Provider | Git |
+| Repository URL | `https://github.com/optitudes/sura_admin_ti.git` |
+| Branch | `main` |
+| Build Path | `/codigo/dokploy/app` |
+| Build Type | Dockerfile |
+
+Variables de entorno (pestaña *Environment*):
+
+```text
+DATABASE_URL=postgresql://sura_app:********@<nombre-interno-de-sura-db>:5432/sura
+PORT=3000
+```
+
+`Dockerfile` usado:
+
+```dockerfile
+FROM node:22-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm install --omit=dev
+COPY . .
+ENV PORT=3000
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s CMD wget -qO- http://localhost:3000/health || exit 1
+CMD ["node", "server.js"]
+```
+
+Al presionar **Deploy**, Dokploy clonó el repositorio, construyó la imagen (`Docker build completed`, captura `23`) y levantó el contenedor. Los logs confirman la conexión:
+
+```text
+Base de datos lista
+Portal SURA EPS (académico) escuchando en puerto 3000
+```
+
+Captura `24`.
+
+---
+
+## 8. Parte 6 — Dominio y HTTPS
+
+En la pestaña **Domains** de `sura-portal` se agregó el dominio:
+
+| Campo | Valor |
+|-------|-------|
+| Host | `sura.192.168.20.86.sslip.io` |
+| Path | `/` |
+| Container Port | `3000` |
+| HTTPS | Activado |
+| Certificate Provider | None (certificado propio de Traefik) |
+
+**¿Por qué sslip.io?** Es un servicio DNS gratuito que resuelve cualquier nombre con una IP incrustada hacia esa IP. Así, `sura.192.168.20.86.sslip.io` apunta al servidor sin comprar un dominio ni configurar un DNS propio.
+
+**¿Por qué un certificado autofirmado?** El servidor tiene una IP privada, así que Let's Encrypt no puede validarlo desde internet. Traefik genera su propio certificado (`TRAEFIK DEFAULT CERT`, válido por un año). La conexión va cifrada con TLS, pero el navegador muestra "No es seguro" porque el certificado no lo firma una autoridad reconocida. En un entorno de producción con IP pública se cambiaría *Certificate Provider* a **Let's Encrypt**, sin modificar nada más.
+
+Capturas `25` (dominio configurado), `26` (portal abierto por `https://`) y `28` (certificado).
+
+---
+
+## 9. Verificación del funcionamiento
+
+| Prueba | Resultado | Captura |
+|--------|-----------|---------|
+| Panel de Dokploy accesible en `:3000` | Correcto | `20` |
+| Base de datos `sura-db` desplegada | `Deployment completed successfully!` | `22` |
+| Construcción de la imagen de la app | `Docker build completed` | `23` |
+| Conexión app → PostgreSQL | `Base de datos lista` en los logs | `24` |
+| Acceso por dominio con HTTPS | Portal cargado en `https://sura.192.168.20.86.sslip.io` con "Base de datos conectada" | `26` |
+| Lectura desde la BD | Tablas de sedes y servicios cargadas desde PostgreSQL | `26` |
+| Escritura en la BD | Incidente registrado y listado en la tabla | `27` |
+| Certificado TLS | Emitido por `TRAEFIK DEFAULT CERT` | `28` |
+
+También se puede comprobar desde cualquier equipo de la red:
+
+```bash
+## -k acepta el certificado autofirmado
+curl -k https://sura.192.168.20.86.sslip.io/health
+## Respuesta esperada: {"status":"ok","db":"conectada"}
+```
+
+---
+
+## 10. Solución de problemas encontrados
 
 | Problema | Causa | Solución |
 |----------|-------|----------|
 | El instalador mostró `ens33 — autoconfiguration failed` y no obtuvo IP (captura `P1a`) | El puente de VMware estaba en "Automático" y se conectó al adaptador virtual de Hyper-V, no a la tarjeta física | En **Edit → Virtual Network Editor → VMnet0** se cambió *Bridged to* a **Realtek PCIe GbE Family Controller** (captura `P1b`) y se volvió a pedir IP con *Edit IPv4 → Automatic (DHCP)* |
 | `cat: /etc/netplan/01-ip-fija.yaml: Permission denied` | El archivo tiene permisos `600` (solo root) | Leerlo con `sudo cat`. Este error confirma que los permisos quedaron correctos |
+| En *Domains* aparece en rojo "Domain resolves to 192.168.20.86 but should point to…" | Dokploy compara el dominio con la IP pública del router; el servidor es local y el dominio apunta a propósito a su IP privada | No requiere acción: el portal funciona dentro de la red local (captura `26`). En producción el dominio apuntaría a una IP pública |
+| El navegador muestra "No es seguro" | Certificado autofirmado de Traefik (ver punto 8) | Se acepta en *Configuración avanzada → Continuar*. En producción se usaría Let's Encrypt |
 
 ---
 
-## 7. Seguridad
+## 11. Seguridad
 
-- La contraseña del usuario de Ubuntu y la del panel de Dokploy son distintas, y no aparecen en este documento ni en las capturas.
-- El token de unión al Swarm y el correo de la cuenta de administrador se difuminaron en las capturas.
+- La contraseña del usuario de Ubuntu, la del panel de Dokploy y la de la base de datos son distintas, y no aparecen en este documento ni en las capturas.
+- PostgreSQL no publica ningún puerto: solo la aplicación lo alcanza por la red interna de Docker.
+- La cadena `DATABASE_URL` se guarda en las variables de entorno de Dokploy, no en el código del repositorio.
+- La aplicación usa consultas parametrizadas (protección contra inyección SQL) y escapa el texto que muestra (protección contra XSS).
+- El token de unión al Swarm, el correo de la cuenta de administrador y la IP pública del router se difuminaron en las capturas.
 - No se actualizó a Ubuntu 26.04: el servidor se mantiene en la versión LTS que pide la guía del proyecto.
