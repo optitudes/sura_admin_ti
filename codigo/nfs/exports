@@ -1,0 +1,4 @@
+# /etc/exports — reemplazar ${ip del usuario} por la IP del cliente autorizado
+# (en las pruebas: 192.168.1.4)
+/srv/nfs/afiliaciones     ${ip del usuario}(rw,sync,no_subtree_check,root_squash)
+/srv/nfs/autorizaciones   ${ip del usuario}(rw,sync,no_subtree_check,root_squash)

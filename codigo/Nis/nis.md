@@ -27,7 +27,7 @@ grep proyectofinal /etc/hosts
 ping -c 1 proyectofinal
 ```
 
-![Resolución del nombre del servidor](../../capturas/nis/01-hosts-ping.png)
+![Resolución del nombre del servidor](<../../capturas/nis/Servidor/1. Comprobar nombre del servidor.png>)
 
 ### Paso 2. Instalar NIS y definir el dominio
 
@@ -38,7 +38,7 @@ sudo apt install nis -y
 
 Durante la instalación se solicita el dominio NIS: `empresa.local`.
 
-![Instalación de NIS](../../capturas/nis/02-instalar-nis.png)
+![Instalación de NIS](<../../capturas/nis/Servidor/2. Instalar NIS.png>)
 
 La instalación no dejó el dominio guardado (`/etc/defaultdomain` no existía), así que se definió a mano:
 
@@ -48,7 +48,7 @@ echo "empresa.local" | sudo tee /etc/defaultdomain
 cat /etc/defaultdomain
 ```
 
-![Dominio NIS guardado](../../capturas/nis/03-defaultdomain.png)
+![Dominio NIS guardado](<../../capturas/nis/Servidor/2.1. Instalar NIS.png>)
 
 ### Paso 3. Configurar el servidor como maestro
 
@@ -59,7 +59,7 @@ grep NISSERVER /etc/default/nis
 
 Debe mostrar `NISSERVER=master`.
 
-![NISSERVER=master](../../capturas/nis/04-nisserver-master.png)
+![NISSERVER=master](<../../capturas/nis/Servidor/3. Configurar el servidor como maestro.png>)
 
 ### Paso 4. Restringir el acceso a la red local
 
@@ -70,9 +70,9 @@ sudo tee /etc/ypserv.securenets > /dev/null <<'EOF'
 EOF
 ```
 
-Solo pueden consultar el servidor el propio equipo (`127.0.0.0`) y la red `192.168.1.0/24`.
+Solo pueden consultar el servidor el propio equipo (`127.0.0.0`) y la red `192.168.1.0/24`. Archivo de referencia: [`ypserv.securenets`](ypserv.securenets).
 
-![ypserv.securenets](../../capturas/nis/05-securenets.png)
+![ypserv.securenets](<../../capturas/nis/Servidor/4. Restringe el acceso a la red.png>)
 
 ### Paso 5. Indicar que el servidor se consulta a sí mismo
 
@@ -80,7 +80,7 @@ Solo pueden consultar el servidor el propio equipo (`127.0.0.0`) y la red `192.1
 echo "ypserver 127.0.0.1" | sudo tee -a /etc/yp.conf
 ```
 
-![yp.conf del servidor](../../capturas/nis/06-yp-conf-servidor.png)
+![yp.conf del servidor](<../../capturas/nis/Servidor/5. Indicar al servidor autoconsulta.png>)
 
 ### Paso 6. Definir qué usuarios se publican
 
@@ -96,7 +96,7 @@ grep -E "^(MINUID|MINGID|MERGE_PASSWD|MERGE_GROUP)" /var/yp/Makefile
 
 Resultado final: `MINUID=1001`, `MINGID=1001`, `MERGE_PASSWD=true`, `MERGE_GROUP=true`.
 
-![Makefile de NIS](../../capturas/nis/07-makefile-merge.png)
+![Makefile de NIS](<../../capturas/nis/Servidor/6. Ajustar los usuarios.png>)
 
 ### Paso 7. Crear los usuarios de prueba
 
@@ -108,7 +108,7 @@ sudo adduser --gecos "" usuario2
 id usuario1
 ```
 
-![Usuarios de prueba](../../capturas/nis/08-usuarios-prueba.png)
+![Usuarios de prueba](<../../capturas/nis/Servidor/7. Creaar los usuarios.png>)
 
 ### Paso 8. Inicializar la base de datos NIS
 
@@ -124,7 +124,7 @@ domainname
 sudo /usr/lib/yp/ypinit -m
 ```
 
-![ypinit](../../capturas/nis/09-ypinit.png)
+![ypinit](<../../capturas/nis/Servidor/8. Inicializa la base NIS.png>)
 
 Los mapas se generaron antes de que `ypserv` estuviera corriendo, por lo que `ypinit` mostró mensajes `RPC: Program not registered`. Una vez iniciados los servicios (paso siguiente), se regeneran los mapas y ya no hay errores:
 
@@ -139,7 +139,7 @@ sudo systemctl restart rpcbind ypserv yppasswdd ypxfrd ypbind
 sudo systemctl enable rpcbind ypserv yppasswdd ypxfrd ypbind
 ```
 
-![Servicios NIS](../../capturas/nis/10-servicios.png)
+![Servicios NIS](<../../capturas/nis/Servidor/9. Iniciar los servicios.png>)
 
 ### Paso 10. Verificación del servidor
 
@@ -157,13 +157,15 @@ Resultados:
 - `ypwhich`: `127.0.0.1`
 - `ypcat passwd`: `usuario1` (1001) y `usuario2` (1002); la cuenta `Sara` no se publica
 
-![Verificación del servidor NIS](../../capturas/nis/11-verificacion-servidor.png)
+![Verificación del servidor NIS](<../../capturas/nis/Servidor/10. Verificar.png>)
 
 > Cada vez que se cree, modifique o elimine un usuario en el servidor hay que regenerar los mapas con `sudo make -C /var/yp`. Este comando se ejecuta **solo en el servidor**.
 
 ---
 
 ## Parte 2. Cliente
+
+Los archivos que quedan configurados en el cliente están resumidos en [`cliente-nis.conf`](cliente-nis.conf).
 
 ### Paso 1. Instalar NIS
 
@@ -174,7 +176,7 @@ sudo apt install nis -y
 
 Cuando pida el dominio, escribir `empresa.local`.
 
-![Instalación de NIS en el cliente](../../capturas/nis/12-cliente-instalar.png)
+![Instalación de NIS en el cliente](<../../capturas/nis/Cliente/1. Instalar NIS.png>)
 
 ### Paso 2. Fijar el dominio
 
@@ -184,7 +186,7 @@ sudo domainname empresa.local
 domainname
 ```
 
-![Dominio en el cliente](../../capturas/nis/13-cliente-dominio.png)
+![Dominio en el cliente](<../../capturas/nis/Cliente/2. Fijar el dominio.png>)
 
 ### Paso 3. Indicar el servidor NIS
 
@@ -192,7 +194,7 @@ domainname
 echo "domain empresa.local server 192.168.1.200" | sudo tee -a /etc/yp.conf
 ```
 
-![yp.conf del cliente](../../capturas/nis/14-cliente-yp-conf.png)
+![yp.conf del cliente](<../../capturas/nis/Cliente/3. Indicar el servidor NIS.png>)
 
 ### Paso 4. Consultar NIS para usuarios y grupos
 
@@ -203,7 +205,7 @@ grep -E "^(passwd|group|shadow):" /etc/nsswitch.conf
 
 Cada línea debe terminar en `nis`.
 
-![nsswitch.conf del cliente](../../capturas/nis/15-cliente-nsswitch.png)
+![nsswitch.conf del cliente](<../../capturas/nis/Cliente/4. Consultar NIS para usuarios y grupos.png>)
 
 ### Paso 5. Crear el directorio personal en el primer inicio de sesión
 
@@ -211,7 +213,7 @@ Cada línea debe terminar en `nis`.
 echo "session optional pam_mkhomedir.so skel=/etc/skel umask=077" | sudo tee -a /etc/pam.d/common-session
 ```
 
-![pam_mkhomedir](../../capturas/nis/16-cliente-mkhomedir.png)
+![pam_mkhomedir](<../../capturas/nis/Cliente/5. Crear directorio.png>)
 
 ### Paso 6. Iniciar el servicio
 
@@ -220,7 +222,7 @@ sudo systemctl restart rpcbind ypbind
 sudo systemctl enable ypbind
 ```
 
-![ypbind habilitado](../../capturas/nis/17-cliente-ypbind.png)
+![ypbind habilitado](<../../capturas/nis/Cliente/6. Iniciar el servicio.png>)
 
 ### Paso 7. Verificación en el cliente
 
@@ -238,7 +240,7 @@ Resultados:
 - `getent passwd usuario1`: el usuario se resuelve vía NIS (UID 1001)
 - `su - usuario1`: el sistema pide la contraseña definida en el servidor, crea `/home/usuario1` y abre la sesión como `usuario1@cliente`. La cuenta no existe en el cliente, solo en el servidor NIS.
 
-![Verificación y login en el cliente](../../capturas/nis/18-cliente-verificacion-login.png)
+![Verificación y login en el cliente](<../../capturas/nis/Cliente/7. Verificar.png>)
 
 ### Pruebas adicionales
 

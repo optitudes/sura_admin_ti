@@ -3,7 +3,7 @@
 > **Documentación técnica — Entregable 4 (Semana 4)**  
 > **Empresa:** SURA EPS (caso de estudio académico)  
 > **Área:** Tecnología de la Información / Infraestructura y Operaciones  
-> **Versión:** 1.0 · **Estado:** Vigente
+> **Versión:** 1.1 · **Estado:** Vigente
 
 Este documento reúne los procedimientos de instalación, los comandos de verificación, las capturas de pantalla y la solución de problemas de cada servicio desplegado. El análisis de diseño y la tabla de requisitos se encuentran en [`analisis.md`](analisis.md).
 
@@ -11,17 +11,18 @@ Este documento reúne los procedimientos de instalación, los comandos de verifi
 
 ## 1. Entorno base y convenciones
 
-| Elemento | Valor |
-|----------|-------|
-| Sistema operativo | Ubuntu Server 24.04 LTS |
-| Recursos mínimos | 2 vCPU · 4 GB RAM · 40 GB de disco |
-| Hipervisor (Dokploy) | VMware Workstation Pro 26H1u1 · VM `dokploy-sura` |
-| Hipervisor (servicios Linux) | UTM (ARM64 sobre Apple Silicon M4) · host `srv-admin-ti` |
-| Red | Modo puente (Bridged), IP fija vía netplan |
-| IP del entorno Dokploy | `192.168.20.86/24` · gateway `192.168.20.1` |
-| Usuarios administradores | `derek` (VM Dokploy) · `saraf` (servicios Linux) |
+Cada servicio se implementó en el laboratorio del integrante responsable (justificación en [`analisis.md`](analisis.md), §1.1):
 
-**Convención de placeholders.** Los comandos siguientes son normativos y no deben modificarse. Los marcadores se reemplazan por los valores reales antes de ejecutar: `${ip del servidor nfs}`, `${ip del usuario}`, `${ip del servidor cups}` y `<IP_SERVIDOR>`. La IP `192.168.20.86` corresponde al laboratorio de pruebas.
+| Servicio | Equipo | Plataforma y sistema | IP | Usuario administrador |
+|----------|--------|----------------------|----|-----------------------|
+| Dokploy, web y BD | `dokploy-sura` | VMware Workstation Pro 26H1u1 · Ubuntu Server 24.04.5 LTS · 2 vCPU, 4 GB RAM, 40 GB | `192.168.20.86/24` (gateway `192.168.20.1`) | `derek` |
+| NTP y NIS | `ProyectoFinal` y `cliente` | VMs Ubuntu Server 22.04 LTS | `192.168.1.200` / `192.168.1.201` (gateway `192.168.1.1`) | `Sara` |
+| NFS | `srvarchivos-armenia` y cliente Linux | Debian | `192.168.1.6` (cliente `192.168.1.4`) | — |
+| CUPS y Samba | `srv-admin-ti` | UTM (ARM64 sobre Apple Silicon M4) · Ubuntu Server 24.04 LTS · 2 vCPU, 4 GB RAM, 40 GB | `192.168.43.8` | `saraf` |
+
+Todas las máquinas usan red en modo puente (Bridged) e IP fija.
+
+**Convención de placeholders.** Los comandos siguientes son normativos y no deben modificarse. Los marcadores se reemplazan por los valores reales antes de ejecutar: `${ip del servidor nfs}`, `${ip del usuario}`, `${ip del servidor cups}` y `<IP_SERVIDOR>`. Las IP `192.168.20.86` (Dokploy) y `192.168.1.200` / `192.168.1.201` (NTP y NIS) corresponden a los laboratorios de prueba.
 
 **Regla de gobernanza.** Los bloques de código son normativos (tal como aparecen en las guías de `codigo/`); solo se amplía la documentación explicativa a su alrededor.
 
@@ -368,6 +369,15 @@ ls -l /mnt/afiliaciones/prueba.txt
 
 > Repetir el procedimiento con GID/UID `2002` y el usuario `autorizaciones` para el otro volumen.
 
+**Montaje usado en la evidencia.** En la prueba (cliente `192.168.1.4`, servidor `192.168.1.6`) el volumen se montó con NFSv3, mostrando el detalle de la negociación con `-v` (captura `03`):
+
+```bash
+sudo mount -v -t nfs -o vers=3,noresvport,retry=0 192.168.1.6:/srv/nfs/afiliaciones /mnt/afiliaciones
+sudo -u atencion.afiliado touch /mnt/afiliaciones/nueva_afiliacion.txt
+```
+
+El archivo creado desde el cliente aparece en `/srv/nfs/afiliaciones` del servidor (captura `05`).
+
 Montaje permanente en `/etc/fstab` (reemplazar `192.168.1.6` por la IP real):
 
 ```text
@@ -408,6 +418,7 @@ sudo systemctl status nfs-server
 | Montaje colgado | Servidor no responde o falta `_netdev` | Agregar `_netdev` y `x-systemd.automount`; revisar con `ping` |
 | Archivos como `nobody:nogroup` | `root_squash` activo o UID/GID no coinciden | Ajustar UID/GID; `no_root_squash` solo con aprobación de seguridad |
 | `mount.nfs: Connection timed out` | Firewall bloqueando 2049 o servidor apagado | Verificar `ping`, estado de `nfs-server` y firewall |
+| El log de `nfs-server` muestra `exportfs: can't open /etc/exports for reading` (captura `02`) | El servicio arrancó antes de crear `/etc/exports` | Crear el archivo y ejecutar `sudo exportfs -ra`; `sudo exportfs -v` debe listar los dos volúmenes (captura `01`) |
 
 ### 5.5 Evidencias
 
@@ -501,7 +512,7 @@ lpq -a
 ls -la ~/PDF/
 ```
 
-También se puede revisar `https://${ip del servidor cups}:631/jobs?which_jobs=completed`: los trabajos deben aparecer como `completed`.
+También se puede revisar `https://${ip del servidor cups}:631/jobs?which_jobs=completed`: los trabajos deben aparecer como `completed`. En la evidencia, `Impresora_SURA-1` e `Impresora_SURA-2` figuran como completados (captura `02`).
 
 ### 6.4 Solución de problemas
 
@@ -511,6 +522,7 @@ También se puede revisar `https://${ip del servidor cups}:631/jobs?which_jobs=c
 | `403 Forbidden` en `/admin` | Validación estricta de cabecera Host en CUPS 2.4+ | Agregar `ServerAlias *` bajo `Port 631` y `sudo systemctl restart cups` |
 | `ERR_ADDRESS_UNREACHABLE` desde macOS | Permiso de Red local desactivado o AP Isolation | Activar Red local y validar con `ping` |
 | Trabajos en `stopped` o `held` | PPD incompatible o impresora pausada | Usar *Generic CUPS-PDF Printer (w/ options)* y `sudo cupsenable Impresora_SURA` |
+| `ls -la ~/PDF/` responde `No such file or directory` (captura `03`) | Los trabajos llegan desde macOS con usuario "Retenido" (no existe en el servidor) y CUPS-PDF los guarda como anónimos | Buscar los PDF en la carpeta de trabajos anónimos definida en `/etc/cups/cups-pdf.conf` (directiva `AnonDirName`, por defecto `/var/spool/cups-pdf/ANONYMOUS`) |
 
 ### 6.5 Evidencias
 
@@ -592,7 +604,7 @@ testparm -s
 smbclient //localhost/sura -U saraf
 ```
 
-Criterios: ambos servicios en `active (running)`; `testparm -s` carga sin errores las directivas globales y la sección `[sura]`; `smbclient` muestra el prompt `smb: \>`.
+Criterios: `smbd` en `active (running)`; `testparm -s` carga sin errores las directivas globales y la sección `[sura]`; `smbclient` muestra el prompt `smb: \>`. `nmbd` solo se usa para el descubrimiento por nombres NetBIOS: en la evidencia aparece omitido (ver §7.5) y el acceso por `smb://IP/sura` funciona igual.
 
 **Desde macOS (Finder):**
 
@@ -607,6 +619,7 @@ Criterios: ambos servicios en `active (running)`; `testparm -s` carga sin errore
 |----------|-------|----------|
 | `Access Denied` con usuario existente en el SO | Samba usa `passdb.tdb`, no `/etc/shadow` | `sudo smbpasswd -a saraf` y `sudo smbpasswd -e saraf` |
 | `ERR_ADDRESS_UNREACHABLE` desde macOS (timeout al mapear) | Permisos de Red local o tethering móvil sin enrutamiento | Activar Red local, `ping <IP_SERVIDOR>` y `nc -zv <IP_SERVIDOR> 445` |
+| `nmbd.service` aparece `inactive (dead)` con `start condition unmet` (captura `03`) | El script de Ubuntu `/usr/share/samba/is-configured nmb` indicó que NetBIOS no está configurado y systemd omitió `nmbd` | No afecta el recurso: los clientes se conectan por IP al puerto 445 (`smbd`). Solo se necesitaría `nmbd` para ver el servidor por nombre NetBIOS en el "Entorno de red" de Windows |
 
 ### 7.6 Evidencias
 
@@ -622,25 +635,328 @@ Criterios: ambos servicios en `active (running)`; `testparm -s` carga sin errore
 
 ## 8. NTP — sincronización horaria
 
-> ### ⚠️ PENDIENTE DE IMPLEMENTAR
->
-> El servicio NTP forma parte del diseño aprobado (ver `analisis.md`, §2.4 y §3, fila 5) y es necesario para la correlación de logs y la trazabilidad de incidentes. Sin embargo, **el equipo aún no cuenta con una guía de instalación ni con evidencias en `capturas/`**, por lo que no se documentan procedimientos ni comandos de verificación.
->
-> **Puerto previsto:** 123/UDP. **Criterio de éxito pendiente:** los clientes de la red sincronizan su reloj con el servidor.
+Fuentes: [`codigo/Ntp/ntp.md`](codigo/Ntp/ntp.md) y [`codigo/red/red.md`](codigo/red/red.md).
 
-Diagrama previsto: [`codigo/Ntp/diagrama-ntp.md`](codigo/Ntp/diagrama-ntp.md).
+| Elemento | Valor |
+|----------|-------|
+| Servidor | `ProyectoFinal` · `192.168.1.200` (`proyectofinal.empresa.local`) |
+| Cliente | `cliente` · `192.168.1.201` (clon del servidor) |
+| Software | chrony |
+| Puerto | `123/UDP` |
+| Zona horaria | `America/Bogota` |
+
+### 8.1 Red de las VMs
+
+Ambas VMs usan IP fija en `/etc/netplan/50-cloud-init.yaml` (interfaz `enp0s3`, gateway `192.168.1.1`, DNS `8.8.8.8` y `1.1.1.1`) y el servidor se registra en `/etc/hosts`:
+
+```text
+192.168.1.200   proyectofinal.empresa.local   proyectofinal
+```
+
+```bash
+## Aplica la red y verifica dirección, gateway y salida a internet
+sudo netplan apply
+ip -br a
+ping -c 3 192.168.1.1
+ping -c 3 pool.ntp.org
+```
+
+![netplan con IP fija](<capturas/ntp/Configuración/1. netplan.png>)
+
+![/etc/hosts del servidor](<capturas/ntp/Configuración/2. hosts.png>)
+
+![Verificación de direcciones y conectividad](<capturas/ntp/Configuración/3. Verificar direcciones.png>)
+
+### 8.2 Instalación y configuración del servidor
+
+```bash
+## Zona horaria
+sudo timedatectl set-timezone America/Bogota
+timedatectl
+
+## Instala chrony y desactiva systemd-timesyncd (queda "masked": es lo esperado)
+sudo apt update
+sudo apt install chrony -y
+sudo systemctl disable --now systemd-timesyncd
+```
+
+![Zona horaria](<capturas/ntp/Servidor/1. Zona horaria.png>)
+
+![systemd-timesyncd enmascarado](<capturas/ntp/Servidor/3. Quitar Tiempo Cliente.png>)
+
+Líneas agregadas al final de `/etc/chrony/chrony.conf` (archivo de referencia: [`codigo/Ntp/chrony-servidor.conf`](codigo/Ntp/chrony-servidor.conf)):
+
+```conf
+# Fuente adicional
+pool pool.ntp.org iburst
+
+# Permitir que la red local use este servidor
+allow 192.168.1.0/24
+
+# Seguir sirviendo hora si se pierde internet
+local stratum 10
+```
+
+| Directiva | Función |
+|-----------|---------|
+| `pool` | Fuente externa adicional de tiempo |
+| `allow` | Autoriza a la red `192.168.1.0/24` a consultar el servidor |
+| `local stratum 10` | Sigue entregando hora aunque se pierda internet |
+
+![Configuración de chrony](<capturas/ntp/Servidor/4. Configurar chrony.png>)
+
+```bash
+## Reinicia, habilita y verifica el servicio
+sudo systemctl restart chrony
+sudo systemctl enable chrony
+systemctl status chrony
+
+## Firewall: UFW inactivo, no bloquea 123/udp (si se activa: sudo ufw allow 123/udp)
+sudo ufw status
+```
+
+![chrony activo](<capturas/ntp/Servidor/5. Reiniciar y activar.png>)
+
+![Estado de UFW](<capturas/ntp/Servidor/6. Firewall.png>)
+
+### 8.3 Configuración del cliente
+
+El cliente es un clon del servidor, así que se dejan comentadas las líneas `pool`, `allow` y `local` y se usa el servidor como única fuente (archivo de referencia: [`codigo/Ntp/chrony-cliente.conf`](codigo/Ntp/chrony-cliente.conf)):
+
+```bash
+sudo cp /etc/chrony/chrony.conf /etc/chrony/chrony.conf.bak
+sudo sed -i -E 's/^(pool|allow|local)/#\1/' /etc/chrony/chrony.conf
+echo "server 192.168.1.200 iburst" | sudo tee -a /etc/chrony/chrony.conf
+grep -E "^(server|pool|allow|local)" /etc/chrony/chrony.conf
+sudo systemctl restart chrony
+```
+
+Cliente Windows (opcional):
+
+```text
+w32tm /config /manualpeerlist:"192.168.1.200" /syncfromflags:manual /update
+w32tm /resync
+w32tm /query /status
+```
+
+### 8.4 Comandos de verificación y pruebas
+
+```bash
+## Servidor
+chronyc sources -v
+chronyc tracking
+timedatectl
+sudo ss -ulnp | grep 123
+sudo chronyc clients
+
+## Cliente
+chronyc sources -v
+chronyc tracking
+
+## Prueba de desajuste en el cliente
+sudo systemctl stop chrony
+sudo date -s "2026-01-01 10:00:00"
+sudo systemctl start chrony
+sudo chronyc makestep
+sleep 3
+date
+```
+
+| Prueba | Resultado | Captura |
+|--------|-----------|---------|
+| Fuentes del servidor | Varias fuentes públicas; `^*` en `0.co.ntp.edgeuno.com`, `Leap status: Normal` | `Servidor/7. Verificar.png` |
+| Hora y puerto del servidor | `System clock synchronized: yes`, `NTP service: active`, `chronyd` en `0.0.0.0:123` | `Servidor/8. Verificar.png` |
+| Cliente sincronizado | Única fuente `^* proyectofinal.empresa.local`, `Reference ID C0A801C8` (= `192.168.1.200`), estrato 3 | `Cliente/1. Reiniciar chrony.png` |
+| Prueba de desajuste | La fecha pasa de `Thu Jan 1 2026` a la hora real `Wed Nov 18 2026` | `Cliente/2. Cambiar fecha y hora.png` |
+
+![chronyc sources y tracking en el servidor](<capturas/ntp/Servidor/7. Verificar.png>)
+
+![timedatectl y puerto 123](<capturas/ntp/Servidor/8. Verificar.png>)
+
+![Cliente sincronizado con el servidor](<capturas/ntp/Cliente/1. Reiniciar chrony.png>)
+
+![Prueba de desajuste de hora](<capturas/ntp/Cliente/2. Cambiar fecha y hora.png>)
+
+### 8.5 Solución de problemas
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| `Unit systemd-timesyncd.service is masked, ignoring` | chrony reemplaza a `systemd-timesyncd` al instalarse | No requiere acción |
+| `chronyc sources` muestra `^?` los primeros segundos | La fuente aún no responde | Esperar 10–30 s y repetir |
+| El cliente no ve al servidor | Falta `allow`, firewall o error de red | Revisar `allow 192.168.1.0/24`, `ufw status` y `ping 192.168.1.200` |
+| El cliente (clon) tenía la configuración del servidor | El clon heredó `pool`, `allow` y `local stratum` | Comentarlas con `sed` y dejar solo `server 192.168.1.200 iburst` |
+| Diferencia de hora grande | chrony no corrige saltos grandes de inmediato | `sudo chronyc makestep` |
+| `Destination Host Unreachable` al probar el cliente | El servidor estaba apagado | Encender el servidor y repetir |
 
 ---
 
 ## 9. NIS — autenticación centralizada
 
-> ### ⚠️ PENDIENTE DE IMPLEMENTAR
->
-> El servicio NIS también forma parte del diseño (ver `analisis.md`, §2.6 y §3, fila 7) para centralizar las cuentas de usuario de las estaciones Linux y mantener la coherencia con los UID/GID definidos para NFS. **No existe guía de instalación ni evidencia de pantalla**, por lo que se documenta únicamente su estado.
->
-> **Puerto previsto:** 111 (portmapper) y puertos RPC dinámicos. **Criterio de éxito pendiente:** los clientes se autentican contra el servidor NIS.
+Fuente: [`codigo/Nis/nis.md`](codigo/Nis/nis.md).
 
-Diagrama previsto: [`codigo/Nis/diagrama-nis.md`](codigo/Nis/diagrama-nis.md).
+| Elemento | Valor |
+|----------|-------|
+| Servidor maestro | `ProyectoFinal` · `192.168.1.200` |
+| Cliente | `cliente` · `192.168.1.201` |
+| Dominio NIS | `empresa.local` |
+| Usuarios de prueba | `usuario1` (UID 1001) y `usuario2` (UID 1002) |
+| Puertos | `111` (rpcbind) y puertos dinámicos de `ypserv`, `ypbind`, `yppasswdd` y `ypxfrd` |
+
+> **Seguridad:** NIS transmite la información de cuentas (incluidos los hashes) sin cifrar. Se usa solo en la red local y se restringe con `ypserv.securenets`. Los hashes están ocultos en las capturas. Alternativas más seguras: LDAP o FreeIPA.
+
+### 9.1 Instalación y configuración del servidor
+
+```bash
+## 1. El nombre del servidor debe resolverse (ypinit falla si no)
+grep proyectofinal /etc/hosts
+ping -c 1 proyectofinal
+
+## 2. Instala NIS (dominio: empresa.local) y guarda el dominio
+sudo apt update
+sudo apt install nis -y
+echo "empresa.local" | sudo tee /etc/defaultdomain
+
+## 3. Servidor maestro
+sudo sed -i 's/^NISSERVER=.*/NISSERVER=master/' /etc/default/nis
+grep NISSERVER /etc/default/nis
+```
+
+![Resolución del nombre del servidor](<capturas/nis/Servidor/1. Comprobar nombre del servidor.png>)
+
+![Instalación de NIS](<capturas/nis/Servidor/2. Instalar NIS.png>)
+
+![Dominio NIS guardado](<capturas/nis/Servidor/2.1. Instalar NIS.png>)
+
+![NISSERVER=master](<capturas/nis/Servidor/3. Configurar el servidor como maestro.png>)
+
+```bash
+## 4. Solo el propio equipo y la red local pueden consultar el servidor
+sudo tee /etc/ypserv.securenets > /dev/null <<'EOF'
+255.0.0.0       127.0.0.0
+255.255.255.0   192.168.1.0
+EOF
+
+## 5. El servidor se consulta a sí mismo
+echo "ypserver 127.0.0.1" | sudo tee -a /etc/yp.conf
+
+## 6. Publicar solo UID/GID >= 1001 y distribuir contraseñas y grupos
+sudo sed -i -E 's/^MINUID=.*/MINUID=1001/; s/^MINGID=.*/MINGID=1001/' /var/yp/Makefile
+sudo sed -i -E 's/^MERGE_PASSWD=.*/MERGE_PASSWD=true/; s/^MERGE_GROUP=.*/MERGE_GROUP=true/' /var/yp/Makefile
+grep -E "^(MINUID|MINGID|MERGE_PASSWD|MERGE_GROUP)" /var/yp/Makefile
+```
+
+![ypserv.securenets](<capturas/nis/Servidor/4. Restringe el acceso a la red.png>)
+
+![yp.conf del servidor](<capturas/nis/Servidor/5. Indicar al servidor autoconsulta.png>)
+
+![Makefile de NIS](<capturas/nis/Servidor/6. Ajustar los usuarios.png>)
+
+```bash
+## 7. Usuarios de prueba (antes de generar los mapas)
+sudo adduser --gecos "" usuario1
+sudo adduser --gecos "" usuario2
+id usuario1
+
+## 8. Inicializa la base NIS (Ctrl+D y "y" al pedir otros servidores)
+sudo domainname empresa.local
+sudo /usr/lib/yp/ypinit -m
+
+## 9. Inicia y habilita los servicios y regenera los mapas
+sudo systemctl restart rpcbind ypserv yppasswdd ypxfrd ypbind
+sudo systemctl enable rpcbind ypserv yppasswdd ypxfrd ypbind
+sudo make -C /var/yp
+```
+
+![Usuarios de prueba](<capturas/nis/Servidor/7. Creaar los usuarios.png>)
+
+![ypinit](<capturas/nis/Servidor/8. Inicializa la base NIS.png>)
+
+![Servicios NIS](<capturas/nis/Servidor/9. Iniciar los servicios.png>)
+
+> Cada vez que se crea, modifica o elimina un usuario hay que ejecutar `sudo make -C /var/yp` **en el servidor**.
+
+### 9.2 Configuración del cliente
+
+Resumen de archivos: [`codigo/Nis/cliente-nis.conf`](codigo/Nis/cliente-nis.conf).
+
+```bash
+## 1. Instala NIS (dominio: empresa.local) y fija el dominio
+sudo apt update
+sudo apt install nis -y
+echo "empresa.local" | sudo tee /etc/defaultdomain
+sudo domainname empresa.local
+
+## 2. Indica el servidor NIS
+echo "domain empresa.local server 192.168.1.200" | sudo tee -a /etc/yp.conf
+
+## 3. Consulta NIS para usuarios y grupos
+sudo sed -i -E '/^(passwd|group|shadow):/ s/$/ nis/' /etc/nsswitch.conf
+
+## 4. Crea el directorio personal en el primer inicio de sesión
+echo "session optional pam_mkhomedir.so skel=/etc/skel umask=077" | sudo tee -a /etc/pam.d/common-session
+
+## 5. Inicia el servicio
+sudo systemctl restart rpcbind ypbind
+sudo systemctl enable ypbind
+```
+
+![Instalación de NIS en el cliente](<capturas/nis/Cliente/1. Instalar NIS.png>)
+
+![Dominio en el cliente](<capturas/nis/Cliente/2. Fijar el dominio.png>)
+
+![yp.conf del cliente](<capturas/nis/Cliente/3. Indicar el servidor NIS.png>)
+
+![nsswitch.conf del cliente](<capturas/nis/Cliente/4. Consultar NIS para usuarios y grupos.png>)
+
+![pam_mkhomedir](<capturas/nis/Cliente/5. Crear directorio.png>)
+
+![ypbind habilitado](<capturas/nis/Cliente/6. Iniciar el servicio.png>)
+
+### 9.3 Comandos de verificación y pruebas
+
+```bash
+## Servidor
+domainname
+rpcinfo -p localhost | grep yp
+ypwhich
+ypcat passwd
+
+## Cliente
+ypwhich
+ypcat passwd | cut -d: -f1,3
+getent passwd usuario1
+su - usuario1
+
+## Pruebas adicionales
+ssh usuario2@192.168.1.201     # inicio de sesión remoto con un usuario que solo existe en NIS
+yppasswd                       # cambio de contraseña desde el cliente
+```
+
+| Prueba | Resultado | Captura |
+|--------|-----------|---------|
+| Dominio y servicios del servidor | `empresa.local`; `ypserv`, `ypbind`, `yppasswdd` y `ypxfrd` registrados en `rpcinfo` | `Servidor/10. Verificar.png` |
+| Mapas del servidor | `ypcat passwd` publica `usuario1` y `usuario2`; la cuenta local `Sara` no se publica | `Servidor/10. Verificar.png` |
+| Enlace del cliente | `ypwhich` → `192.168.1.200` | `Cliente/7. Verificar.png` |
+| Autenticación centralizada | `getent passwd usuario1` resuelve por NIS (UID 1001) y `su - usuario1` abre sesión y crea `/home/usuario1` | `Cliente/7. Verificar.png` |
+
+![Verificación del servidor NIS](<capturas/nis/Servidor/10. Verificar.png>)
+
+![Verificación e inicio de sesión en el cliente](<capturas/nis/Cliente/7. Verificar.png>)
+
+### 9.4 Solución de problemas
+
+| Problema | Causa | Solución |
+|----------|-------|----------|
+| `ypinit`: *The local host's domain name hasn't been set* | `domainname` mostraba `(none)` | `sudo domainname empresa.local` y repetir `ypinit -m` |
+| `cat: /etc/defaultdomain: No such file or directory` | La instalación no guardó el dominio | `echo "empresa.local" \| sudo tee /etc/defaultdomain` |
+| `MERGE_PASSWD=false` y `MERGE_GROUP=false` | Valores por defecto del `Makefile` | Cambiarlos a `true` y ejecutar `make -C /var/yp` |
+| `RPC: Program not registered` durante `ypinit` | `ypserv` aún no estaba iniciado | Iniciar los servicios y ejecutar `sudo make -C /var/yp` |
+| `make -C /var/yp` falla en el cliente | Solo el servidor construye los mapas | No ejecutarlo en el cliente |
+| La cuenta `Sara` (UID 1000) chocaría con la cuenta local | `MINUID` por defecto es 1000 | `MINUID=1001` y `MINGID=1001` |
+| `ypwhich` no responde en el cliente | Dominio distinto, `ypbind` detenido o servidor inaccesible | Revisar `domainname`, `/etc/yp.conf`, `systemctl status ypbind` y `ping 192.168.1.200` |
+| El usuario aparece en `ypcat` pero no en `getent passwd` | Falta `nis` en `/etc/nsswitch.conf` | Agregar `nis` a `passwd`, `group` y `shadow` |
+| El usuario entra pero no tiene directorio personal | Falta `pam_mkhomedir` | Agregar la línea en `/etc/pam.d/common-session` |
+| Un usuario nuevo no aparece en el cliente | No se regeneraron los mapas | `sudo make -C /var/yp` en el servidor |
 
 ---
 
@@ -649,14 +965,14 @@ Diagrama previsto: [`codigo/Nis/diagrama-nis.md`](codigo/Nis/diagrama-nis.md).
 | # | Servicio | Comando / prueba principal | Resultado esperado | Estado |
 |---|----------|----------------------------|--------------------|--------|
 | 1 | Web | `curl -k https://sura.192.168.20.86.sslip.io/health` | `{"status":"ok","db":"conectada"}` | ✅ |
-| 2 | NTP | `timedatectl` en cliente | Sincronizado con el servidor | ⏳ Pendiente |
-| 3 | NFS | `df -h \| grep nfs4` en cliente | Volumen `/mnt/afiliaciones` montado | ✅ |
-| 4 | NIS | `ypwhich` / `getent passwd` en cliente | Usuarios del mapa NIS disponibles | ⏳ Pendiente |
+| 2 | NTP | `chronyc sources -v` en cliente | `^* proyectofinal.empresa.local` (`192.168.1.200`) | ✅ |
+| 3 | NFS | `df -h \| grep nfs` en cliente | Volumen `/mnt/afiliaciones` montado y escritura permitida | ✅ |
+| 4 | NIS | `ypwhich`, `getent passwd usuario1` y `su - usuario1` en cliente | Usuario de NIS inicia sesión sin cuenta local | ✅ |
 | 5 | CUPS | `lpstat -p -d` / `lpq -a` | `Impresora_SURA` activa, trabajos `completed` | ✅ |
 | 6 | Samba | `smbclient //localhost/sura -U saraf` | Prompt `smb: \>` y escritura permitida | ✅ |
 | 7 | Base de datos | Logs de `sura-portal` | `Base de datos lista` | ✅ |
 
-**Leyenda:** ✅ implementado y verificado · ⏳ pendiente de implementar.
+**Leyenda:** ✅ implementado y verificado con evidencia en `capturas/`.
 
 ---
 
@@ -668,7 +984,7 @@ Diagrama previsto: [`codigo/Nis/diagrama-nis.md`](codigo/Nis/diagrama-nis.md).
 | NFS | `capturas/nfs/` | `01` exportaciones, `02` servicio en servidor, `03` montaje en cliente, `04` creación de documento, `05` validación en servidor |
 | CUPS | `capturas/cups/` | `01` impresora activa, `02` trabajo completado, `03` terminal del servidor, `04` configuración final |
 | Samba | `capturas/samba/` | `01` Finder macOS, `02` permisos, `03` servicios activos, `04` configuración final |
-| NTP | `capturas/ntp/` | Sin evidencias (pendiente) |
-| NIS | `capturas/nis/` | Sin evidencias (pendiente) |
+| NTP | `capturas/ntp/` | `Configuración/` (netplan, hosts, verificación de red), `Servidor/` (zona horaria, timesyncd, chrony.conf, servicio, UFW, verificaciones), `Cliente/` (sincronización y prueba de desajuste) |
+| NIS | `capturas/nis/` | `Servidor/` `1`–`10` (nombre, instalación, dominio, maestro, securenets, yp.conf, Makefile, usuarios, ypinit, servicios, verificación) y `Cliente/` `1`–`7` (instalación, dominio, yp.conf, nsswitch, mkhomedir, ypbind, verificación e inicio de sesión) |
 
-**Notas de seguridad aplicadas en todo el despliegue:** contraseñas distintas para Ubuntu, panel de Dokploy y base de datos (ninguna aparece en documentos ni capturas); PostgreSQL sin puertos expuestos a la LAN; `DATABASE_URL` almacenada solo en variables de entorno; consultas parametrizadas y escapado de HTML en la app; token de Swarm, correo de administrador e IP pública del router difuminados en las capturas.
+**Notas de seguridad aplicadas en todo el despliegue:** contraseñas distintas para Ubuntu, panel de Dokploy y base de datos (ninguna aparece en documentos ni capturas); hashes de NIS ocultos en las capturas; PostgreSQL sin puertos expuestos a la LAN; `DATABASE_URL` almacenada solo en variables de entorno; consultas parametrizadas y escapado de HTML en la app; token de Swarm, correo de administrador e IP pública del router difuminados en las capturas.

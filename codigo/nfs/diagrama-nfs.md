@@ -5,7 +5,7 @@
 
 ```mermaid
 graph LR
-    S[Servidor NFS srv-admin-ti] --> A["/srv/nfs/afiliaciones · GID 2001"]
+    S[Servidor NFS srvarchivos-armenia 192.168.1.6] --> A["/srv/nfs/afiliaciones · GID 2001"]
     S --> B["/srv/nfs/autorizaciones · GID 2002"]
     A -->|rw sync root_squash 2049| C[Cliente Linux atencion.afiliado]
     B -->|rw sync root_squash 2049| D[Cliente Linux autorizaciones]

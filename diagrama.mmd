@@ -1,0 +1,19 @@
+%% Diagrama de arquitectura — SURA EPS (proyecto académico)
+%% Base: plantilla de la guía del proyecto, ampliada con puertos, base de datos y clientes.
+graph LR
+    A[Red Local] --> B[Dokploy/Traefik · 80/443]
+    B --> C[Web Server · sura-portal]
+    B --> D[Backend API · /api]
+    B --> E[Panel Admin · :3000]
+    C --> O[(PostgreSQL sura-db · 5432 interna)]
+    D --> O
+    F[Servidor Linux] --> G[NTP · chrony · 123/UDP]
+    F --> H[NFS · 2049]
+    F --> I[NIS · empresa.local · 111 + RPC]
+    F --> J[CUPS · 631]
+    F --> K[Samba · 445]
+    G --> R[Clientes NTP]
+    H --> L[Clientes NFS]
+    K --> M[Clientes Windows/Mac]
+    I --> N[Autenticación]
+    J --> Q[Cola Impresora_SURA]

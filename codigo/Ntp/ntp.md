@@ -25,7 +25,7 @@ timedatectl
 
 Debe mostrar `Time zone: America/Bogota (-05, -0500)`.
 
-![Zona horaria](../../capturas/ntp/01-zona-horaria.png)
+![Zona horaria](<../../capturas/ntp/Servidor/1. Zona horaria.png>)
 
 ### Paso 2. Instalar chrony
 
@@ -37,9 +37,7 @@ sudo systemctl disable --now systemd-timesyncd
 
 Al instalar chrony, Ubuntu retira `systemd-timesyncd` para evitar conflictos entre dos servicios de hora. Por eso `disable` responde que la unidad está enmascarada (*masked*); es el comportamiento esperado.
 
-![Instalación de chrony](../../capturas/ntp/02-instalar-chrony.png)
-
-![systemd-timesyncd enmascarado](../../capturas/ntp/03-timesyncd-masked.png)
+![systemd-timesyncd enmascarado](<../../capturas/ntp/Servidor/3. Quitar Tiempo Cliente.png>)
 
 ### Paso 3. Configurar chrony
 
@@ -64,7 +62,9 @@ local stratum 10
 - `allow`: autoriza a los equipos de la red local a consultar el servidor.
 - `local stratum 10`: el servidor sigue entregando hora aunque pierda la conexión a internet.
 
-![Configuración de chrony](../../capturas/ntp/04-chrony-conf.png)
+Archivo de referencia: [`chrony-servidor.conf`](chrony-servidor.conf).
+
+![Configuración de chrony](<../../capturas/ntp/Servidor/4. Configurar chrony.png>)
 
 ### Paso 4. Reiniciar y habilitar el servicio
 
@@ -76,7 +76,7 @@ systemctl status chrony
 
 Debe aparecer `active (running)`.
 
-![Servicio chrony activo](../../capturas/ntp/05-chrony-activo.png)
+![Servicio chrony activo](<../../capturas/ntp/Servidor/5. Reiniciar y activar.png>)
 
 ### Paso 5. Firewall
 
@@ -86,7 +86,7 @@ sudo ufw status
 
 UFW está `inactive`, por lo que no hay reglas que bloqueen el puerto 123/udp. Si se activara, habría que permitirlo con `sudo ufw allow 123/udp`.
 
-![Estado de UFW](../../capturas/ntp/06-ufw-inactivo.png)
+![Estado de UFW](<../../capturas/ntp/Servidor/6. Firewall.png>)
 
 ### Paso 6. Verificación del servidor
 
@@ -104,9 +104,9 @@ Resultados:
 - `timedatectl`: `System clock synchronized: yes` y `NTP service: active`.
 - `ss`: `chronyd` escuchando en `0.0.0.0:123`.
 
-![chronyc sources y tracking](../../capturas/ntp/07-chronyc-sources-tracking.png)
+![chronyc sources y tracking](<../../capturas/ntp/Servidor/7. Verificar.png>)
 
-![timedatectl y puerto 123](../../capturas/ntp/08-timedatectl-puerto-123.png)
+![timedatectl y puerto 123](<../../capturas/ntp/Servidor/8. Verificar.png>)
 
 ---
 
@@ -132,12 +132,14 @@ chronyc sources -v
 chronyc tracking
 ```
 
+Archivo de referencia: [`chrony-cliente.conf`](chrony-cliente.conf).
+
 Resultados:
 
 - `chronyc sources -v`: una única fuente, `proyectofinal.empresa.local` (`192.168.1.200`), marcada con `^*`.
 - `chronyc tracking`: `Reference ID : C0A801C8` (la IP `192.168.1.200` en hexadecimal), estrato 3 (uno más que el servidor) y desfase de microsegundos.
 
-![Cliente sincronizado con el servidor](../../capturas/ntp/09-cliente-sources-tracking.png)
+![Cliente sincronizado con el servidor](<../../capturas/ntp/Cliente/1. Reiniciar chrony.png>)
 
 ### Prueba de sincronización
 
@@ -155,7 +157,7 @@ date
 
 La hora pasa de `Thu Jan 1 2026` (incorrecta) a la hora real `Wed Nov 18 2026`.
 
-![Prueba de desajuste de hora](../../capturas/ntp/10-cliente-prueba-desajuste.png)
+![Prueba de desajuste de hora](<../../capturas/ntp/Cliente/2. Cambiar fecha y hora.png>)
 
 ### Verificación en el servidor (opcional)
 

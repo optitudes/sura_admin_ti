@@ -126,6 +126,8 @@ Define los directorios compartidos, los clientes autorizados y las opciones de e
 /srv/nfs/autorizaciones   ${ip del usuario}(rw,sync,no_subtree_check,root_squash)
 ```
 
+Archivo de referencia: [`exports`](exports). En las pruebas el cliente autorizado fue `192.168.1.4` (captura `01`).
+
 **Opciones de exportación aplicadas:**
 
 - `rw`: lectura y escritura habilitadas.
@@ -225,6 +227,15 @@ ls -l /mnt/afiliaciones/prueba.txt
 
 > Este procedimiento debe repetirse para cada usuario y cada volumen (Afiliaciones y Autorizaciones) que requiera el cliente de SURA EPS.
 
+**Montaje usado en la evidencia.** En la prueba (servidor `srvarchivos-armenia`, `192.168.1.6`) el volumen se montó con NFSv3 y salida detallada (`-v`), y luego se creó un archivo como el usuario del rol (capturas `03` y `04`):
+
+```text
+sudo mount -v -t nfs -o vers=3,noresvport,retry=0 192.168.1.6:/srv/nfs/afiliaciones /mnt/afiliaciones
+sudo -u atencion.afiliado touch /mnt/afiliaciones/nueva_afiliacion.txt
+```
+
+El archivo `nueva_afiliacion.txt` aparece en `/srv/nfs/afiliaciones` del servidor (captura `05`).
+
 ### 5.7 Montaje permanente mediante `/etc/fstab`
 
 Para que el montaje sobreviva a reinicios, edite `/etc/fstab` y agregue la entrada correspondiente. Reemplace `192.168.1.6` por la IP real del servidor NFS de SURA EPS.
@@ -236,6 +247,8 @@ agregando el montaje necesario
 
 192.168.1.6:/srv/nfs/afiliaciones  /mnt/afiliaciones  nfs4  defaults,_netdev,x-systemd.automount,noatime  0  0
 ```
+
+Archivo de referencia: [`fstab`](fstab).
 
 **Opciones de montaje persistente:**
 

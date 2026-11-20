@@ -1,0 +1,2 @@
+# Línea de /etc/fstab en el cliente — reemplazar 192.168.1.6 por la IP del servidor NFS
+192.168.1.6:/srv/nfs/afiliaciones  /mnt/afiliaciones  nfs4  defaults,_netdev,x-systemd.automount,noatime  0  0
